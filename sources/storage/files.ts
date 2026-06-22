@@ -19,7 +19,10 @@ export const s3host = process.env.S3_HOST!
 export const s3public = process.env.S3_PUBLIC_URL!;
 
 export async function loadFiles() {
-    await s3client.bucketExists(s3bucket); // Throws if bucket does not exist or is not accessible
+    const exists = await s3client.bucketExists(s3bucket);
+    if (!exists) {
+        await s3client.makeBucket(s3bucket);
+    }
 }
 
 export function getPublicUrl(path: string) {
