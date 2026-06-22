@@ -15,7 +15,12 @@ import { loadFiles } from "./storage/files";
 async function main() {
 
     // Storage
-    await db.$connect();
+    try {
+        await db.$connect();
+    } catch (e) {
+        log({ module: 'db', level: 'fatal' }, `Database connection failed: ${e}`);
+        throw e;
+    }
     onShutdown('db', async () => {
         await db.$disconnect();
     });
