@@ -27,7 +27,11 @@ async function main() {
     // Initialize auth module
     await initEncrypt();
     await initGithub();
-    await loadFiles();
+    try {
+        await loadFiles();
+    } catch (e) {
+        log({ module: 's3', level: 'warn' }, `S3 storage not available: ${e}`);
+    }
     await auth.init();
 
     //
