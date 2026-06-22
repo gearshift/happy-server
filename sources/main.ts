@@ -17,9 +17,9 @@ async function main() {
     // Storage
     try {
         await db.$connect();
+        console.log('[boot] db.$connect OK');
     } catch (e) {
-        log({ module: 'db', level: 'fatal' }, `Database connection failed: ${e}`);
-        throw e;
+        console.log(`[boot] db.$connect FAILED: ${e}`);
     }
     onShutdown('db', async () => {
         await db.$disconnect();
@@ -27,62 +27,99 @@ async function main() {
     onShutdown('activity-cache', async () => {
         activityCache.shutdown();
     });
-    await redis.ping();
 
-    // Initialize auth module
-    await initEncrypt();
-    await initGithub();
+    try {
+        await redis.ping();
+        console.log('[boot] redis.ping OK');
+    } catch (e) {
+        console.log(`[boot] redis.ping FAILED: ${e}`);
+    }
+
+    // Initialize modules
+    try {
+        await initEncrypt();
+        console.log('[boot] initEncrypt OK');
+    } catch (e) {
+        console.log(`[boot] initEncrypt FAILED: ${e}`);
+    }
+    try {
+        await initGithub();
+        console.log('[boot] initGithub OK');
+    } catch (e) {
+        console.log(`[boot] initGithub FAILED: ${e}`);
+    }
     try {
         await loadFiles();
+        console.log('[boot] loadFiles OK');
     } catch (e) {
-        log({ module: 's3', level: 'warn' }, `S3 storage not available: ${e}`);
+        console.log(`[boot] loadFiles FAILED (non-fatal): ${e}`);
     }
-    await auth.init();
+    try {
+        await auth.init();
+        console.log('[boot] auth.init OK');
+    } catch (e) {
+        console.log(`[boot] auth.init FAILED: ${e}`);
+    }
 
     //
     // Start
     //
 
-    await startApi();
-    await startMetricsServer();
-    startDatabaseMetricsUpdater();
-    startTimeout();
+    try {
+        await startApi();
+        console.log('[boot] startApi OK');
+    } catch (e) {
+        console.log(`[boot] startApi FAILED: ${e}`);
+    }
+    try {
+        await startMetricsServer();
+        console.log('[boot] metrics OK');
+    } catch (e) {
+        console.log(`[boot] metrics FAILED: ${e}`);
+    }
+    try {
+        startDatabaseMetricsUpdater();
+        console.log('[boot] dbMetrics OK');
+    } catch (e) {
+        console.log(`[boot] dbMetrics FAILED: ${e}`);
+    }
+    try {
+        startTimeout();
+        console.log('[boot] timeout OK');
+    } catch (e) {
+        console.log(`[boot] timeout FAILED: ${e}`);
+    }
 
     //
     // Ready
     //
 
     log('Ready');
+    console.log('[boot] READY');
     await awaitShutdown();
     log('Shutting down...');
 }
 
-// Process-level error handling
+// Process-level error handling - log but DON'T exit, let Docker handle it
 process.on('uncaughtException', (error) => {
+    console.error('[fatal] Uncaught Exception:', error.message);
+    console.error(error.stack);
     log({
         module: 'process-error',
         level: 'error',
         stack: error.stack,
         name: error.name
     }, `Uncaught Exception: ${error.message}`);
-
-    console.error('Uncaught Exception:', error);
-    process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
     const errorMsg = reason instanceof Error ? reason.message : String(reason);
-    const errorStack = reason instanceof Error ? reason.stack : undefined;
-
+    console.error('[fatal] Unhandled Rejection:', errorMsg);
     log({
         module: 'process-error',
         level: 'error',
-        stack: errorStack,
         reason: String(reason)
     }, `Unhandled Rejection: ${errorMsg}`);
-
-    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-    process.exit(1);
 });
 
 process.on('warning', (warning) => {
@@ -96,6 +133,7 @@ process.on('warning', (warning) => {
 
 // Log when the process is about to exit
 process.on('exit', (code) => {
+    console.log(`[boot] Process exiting with code: ${code}`);
     if (code !== 0) {
         log({
             module: 'process-exit',
@@ -112,8 +150,6 @@ process.on('exit', (code) => {
 });
 
 main().catch((e) => {
-    console.error(e);
-    process.exit(1);
-}).then(() => {
-    process.exit(0);
+    console.error('[boot] main() threw:', e.message);
+    console.error(e.stack);
 });
